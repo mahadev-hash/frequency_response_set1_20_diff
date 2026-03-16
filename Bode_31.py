@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -6,7 +7,7 @@ from dash import Dash, dcc, html, Input, Output
 # =========================
 # Load CSV
 # =========================
-CSV_PATH = r"F:\New folder\New folder\pvn20.csv"
+CSV_PATH = "pvn20.csv"
 
 data = pd.read_csv(CSV_PATH, sep=None, engine="python")
 data.columns = data.columns.str.strip().str.lower()
@@ -14,7 +15,7 @@ data.columns = data.columns.str.strip().str.lower()
 # =========================
 # Detect datasets
 # =========================
-sets = sorted([int(col.split("_")[1]) for col in data.columns if "frequency_" in col])
+sets = sorted(int(col.split("_")[1]) for col in data.columns if "frequency_" in col)
 
 colors = [
 "#1f77b4","#ff7f0e","#2ca02c","#d62728",
@@ -29,63 +30,43 @@ colors = [
 # Extract data
 # =========================
 def get_set_data(i):
-
-    freq = data[f"frequency_{i}"].dropna() / 1e6   # Hz → MHz
+    freq = data[f"frequency_{i}"].dropna() / 1e6
     gain = data[f"gain_{i}"].dropna()
-
     return freq, gain
 
-
-# =========================
-# Reference Set
-# =========================
+# Reference dataset
 ref_freq, ref_gain = get_set_data(1)
-
 
 # =========================
 # Dash App
 # =========================
 app = Dash(__name__)
+server = app.server
 app.title = "Gain Comparison Dashboard"
 
-app.layout = html.Div(
+app.layout = html.Div([
+    
+    html.H3("Gain Comparison (Reference = Set 1)",
+            style={"textAlign":"center"}),
 
-    style={"height":"100vh","display":"flex","flexDirection":"column"},
-
-    children=[
-
-        html.H3(
-            "Gain Comparison (Reference = Set 1)",
-            style={"textAlign":"center","margin":"5px"}
-        ),
-
-        html.Div([
-
-            html.Label("Select Dataset"),
-
-            dcc.Dropdown(
-                id="dataset",
-                options=[{"label":f"Set {i}","value":i} for i in sets if i != 1],
-                value=sets[1],
-                clearable=False,
-                style={"width":"200px"}
-            )
-
-        ],style={
-            "display":"flex",
-            "justifyContent":"center",
-            "alignItems":"center",
-            "gap":"10px",
-            "marginBottom":"5px"
-        }),
-
-        dcc.Graph(
-            id="comparison-graph",
-            style={"flexGrow":"1"}
+    html.Div([
+        html.Label("Select Dataset"),
+        dcc.Dropdown(
+            id="dataset",
+            options=[{"label":f"Set {i}","value":i} for i in sets if i != 1],
+            value=sets[1],
+            clearable=False,
+            style={"width":"200px"}
         )
-    ]
-)
+    ],style={
+        "display":"flex",
+        "justifyContent":"center",
+        "gap":"10px"
+    }),
 
+    dcc.Graph(id="comparison-graph", style={"height":"90vh"})
+
+])
 
 # =========================
 # Callback
@@ -102,9 +83,8 @@ def update_graph(selected_set):
         subplot_titles=("Gain Curves","Gain Difference vs Set 1")
     )
 
-    freq,gain = get_set_data(selected_set)
+    freq, gain = get_set_data(selected_set)
 
-    # Reference curve
     fig.add_trace(
         go.Scatter(
             x=ref_freq,
@@ -115,7 +95,6 @@ def update_graph(selected_set):
         row=1,col=1
     )
 
-    # Selected curve
     fig.add_trace(
         go.Scatter(
             x=freq,
@@ -126,7 +105,6 @@ def update_graph(selected_set):
         row=1,col=1
     )
 
-    # Gain difference
     gain_diff = gain - ref_gain
 
     fig.add_trace(
@@ -157,4 +135,5 @@ def update_graph(selected_set):
 # Run
 # =========================
 if __name__ == "__main__":
-    app.run(debug=True, port=8051)
+    port = int(os.environ.get("PORT",8051))
+    app.run(host="0.0.0.0",port=port)
